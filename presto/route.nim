@@ -6,12 +6,13 @@
 #              Licensed under either of
 #  Apache License, version 2.0, (LICENSE-APACHEv2)
 #              MIT license (LICENSE-MIT)
-import std/[macros, options]
+import std/[macros, options, re]
 import chronos, chronos/apps/http/[httpcommon, httptable, httpclient]
 import httputils
 import stew/bitops2
 import btrees
 import common, segpath, macrocommon
+import chronicles
 
 export chronos, options, common, httpcommon, httptable
 
@@ -54,6 +55,49 @@ type
     patternCallback*: PatternCallback
     routes*: BTree[SegmentedPath, RestRouteItem]
     allowedOrigin*: Option[string]
+    allowedOriginMatcher*: Option[Regex]
+
+proc compileOriginMatcher(maybeAllowedOrigin: Option[string]): Option[Regex] =
+  if maybeAllowedOrigin.isNone:
+    return none(Regex)
+
+  let allowedOrigin = maybeAllowedOrigin.get()
+
+  if (len(allowedOrigin) == 0):
+    return none(Regex)
+
+  try:
+    var matchOrigin : string
+
+    if allowedOrigin == "*":
+      matchOrigin = r".*"
+      return some(re(matchOrigin, {reIgnoreCase, reExtended}))
+
+    let allowedOrigins = allowedOrigin.split(",")
+
+    var matchExpressions : seq[string] = @[]
+
+    for allowedOrigin in allowedOrigins:
+      if allowedOrigin.startsWith("http://"):
+        matchOrigin = r"http:\/\/" & allowedOrigin.substr(7)
+      elif allowedOrigin.startsWith("https://"):
+        matchOrigin = r"https:\/\/" & allowedOrigin.substr(8)
+      else:
+        matchOrigin = r"https?:\/\/" & allowedOrigin
+
+#[       matchOrigin = matchOrigin.replace(".", r"\.")
+      matchOrigin = matchOrigin.replace("*", ".*")
+      matchOrigin = matchOrigin.replace("?", ".?") ]#
+
+      matchExpressions.add(matchOrigin)
+
+    let finalExpression = matchExpressions.join("|")
+
+    return some(re(finalExpression, {reIgnoreCase, reExtended}))
+  except RegexError:
+    var msg = getCurrentExceptionMsg()
+    error "Failed to compile regex", source=allowedOrigin, err=msg
+    return none(Regex)
 
 proc init*(t: typedesc[RestRouter],
            patternCallback: PatternCallback,
@@ -62,7 +106,8 @@ proc init*(t: typedesc[RestRouter],
            "Pattern validation callback must not be nil")
   RestRouter(patternCallback: patternCallback,
              routes: initBTree[SegmentedPath, RestRouteItem](),
-             allowedOrigin: allowedOrigin)
+             allowedOrigin: allowedOrigin,
+             allowedOriginMatcher: compileOriginMatcher(allowedOrigin))
 
 proc optionsRequestHandler(
        request: HttpRequestRef,
