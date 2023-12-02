@@ -85,9 +85,9 @@ proc compileOriginMatcher(maybeAllowedOrigin: Option[string]): Option[Regex] =
       else:
         matchOrigin = r"https?:\/\/" & allowedOrigin
 
-      matchOrigin = matchOrigin.replace(".", r"\.")
+#[       matchOrigin = matchOrigin.replace(".", r"\.")
       matchOrigin = matchOrigin.replace("*", ".*")
-      matchOrigin = matchOrigin.replace("?", ".?")
+      matchOrigin = matchOrigin.replace("?", ".?") ]#
 
       matchExpressions.add(matchOrigin)
 

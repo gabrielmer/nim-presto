@@ -42,10 +42,12 @@ proc getContentBody*(r: HttpRequestRef): Future[Option[ContentBody]] {.
     ContentBody(contentType: r.contentTypeData.get(), data: data))
 
 proc originsMatch(requestOrigin: string, allowedOriginMatcher: Option[Regex]): bool =
+  
   if allowedOriginMatcher.isNone():
     return false
 
-  return requestOrigin.match(allowedOriginMatcher.get())
+  let res = requestOrigin.match(allowedOriginMatcher.get())
+  return res
 
 proc mergeHttpHeaders(a: var HttpTable, b: HttpTable) =
   # Copy headers from table ``b`` to table ``a`` whose keys are not present in
